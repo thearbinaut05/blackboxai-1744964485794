@@ -1,0 +1,42 @@
+{
+  "affiliate_program": "CoinTracker",
+  "category": "trading_tools",
+  "content": "\ud83d\udcb0 How I earned $1092 using CoinTracker - Review & Tutorial",
+  "affiliate_link": "https://cointracker.com/ref/profitable_bot_5720",
+  "performance": {
+    "clicks": 428,
+    "conversions": 23,
+    "conversion_rate": 0.053738317757009345,
+    "commission_per_conversion": 20.25,
+    "total_commission": 465.75,
+    "timestamp": "2025-09-08T19:00:27.416908"
+  },
+  "promotion_results": [
+    {
+      "platform": "telegram",
+      "reach": 642,
+      "engagement_rate": 0.03332716122963371,
+      "commission_generated": 490.30892452609135
+    },
+    {
+      "platform": "reddit",
+      "reach": 770,
+      "engagement_rate": 0.02136899113695361,
+      "commission_generated": 591.827593183679
+    },
+    {
+      "platform": "twitter",
+      "reach": 513,
+      "engagement_rate": 0.03763741566246896,
+      "commission_generated": 433.49210116366424
+    },
+    {
+      "platform": "medium",
+      "reach": 556,
+      "engagement_rate": 0.08288228987534689,
+      "commission_generated": 349.17092653458286
+    }
+  ],
+  "total_revenue": 1864.7995454080174,
+  "campaign_id": "campaign_1757358027"
+}
