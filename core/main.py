@@ -9,6 +9,7 @@ from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .payment_verifier import PaymentVerifier
@@ -24,6 +25,15 @@ app = FastAPI(
     title="Click-Clack-Cash-Flow Monitor",
     description="Payment verification and server monitoring system",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify actual domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize core components
