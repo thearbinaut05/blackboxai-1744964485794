@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click-Clack-Cash-Flow Monitor</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-healthy { background-color: #4CAF50; }
+        .status-degraded { background-color: #FF9800; }
+        .status-error { background-color: #F44336; }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .alerts {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .alert {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        .alert-critical { border-color: #F44336; background-color: #ffebee; }
+        .alert-high { border-color: #FF9800; background-color: #fff3e0; }
+        .alert-medium { border-color: #2196F3; background-color: #e3f2fd; }
+        .server-status {
+            display: flex;
+            align-items: center;
+            padding: 5px 0;
+        }
+        .refresh-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .refresh-btn:hover {
+            background: #45a049;
+        }
+        .timestamp {
+            color: #888;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏦 Click-Clack-Cash-Flow Monitor</h1>
+        <p>Real-time payment verification and server monitoring</p>
+        <div class="timestamp">Last updated: <span id="lastUpdate">Loading...</span></div>
+        <button class="refresh-btn" onclick="refreshAll()">🔄 Refresh All</button>
+        <button class="refresh-btn" onclick="toggleAutoRefresh()">⏰ Auto-Refresh: <span id="autoRefreshStatus">ON</span></button>
+    </div>
+
+    <div class="dashboard">
+        <!-- System Health Card -->
+        <div class="card">
+            <h3>🏥 System Health</h3>
+            <div id="systemHealth">Loading...</div>
+        </div>
+
+        <!-- Payment Status Card -->
+        <div class="card">
+            <h3>💳 Payment Automation</h3>
+            <div id="paymentStatus">Loading...</div>
+        </div>
+
+        <!-- Server Status Card -->
+        <div class="card">
+            <h3>🖥️ Server Status</h3>
+            <div id="serverStatus">Loading...</div>
+        </div>
+
+        <!-- Metrics Card -->
+        <div class="card">
+            <h3>📊 Metrics</h3>
+            <div id="metrics">Loading...</div>
+        </div>
+
+        <!-- Alerts Card -->
+        <div class="card">
+            <h3>⚠️ Active Alerts</h3>
+            <div id="alerts" class="alerts">Loading...</div>
+        </div>
+
+        <!-- Wallet Status Card -->
+        <div class="card">
+            <h3>👛 Wallet System</h3>
+            <div id="walletStatus">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefresh = true;
+        let refreshInterval;
+
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(endpoint);
+                return await response.json();
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error);
+                return null;
+            }
+        }
+
+        function getStatusIndicator(status) {
+            const statusClass = status === 'healthy' || status === 'operational' || status === true ? 'status-healthy' :
+                              status === 'degraded' || status === 'not_configured' ? 'status-degraded' : 'status-error';
+            return `<span class="status-indicator ${statusClass}"></span>`;
+        }
+
+        async function updateSystemHealth() {
+            const data = await fetchData('/');
+            if (!data) return;
+
+            const html = `
+                <div class="server-status">
+                    ${getStatusIndicator(data.status)}
+                    <strong>Overall Status: ${data.status.toUpperCase()}</strong>
+                </div>
+                <div class="server-status">
+                    ${getStatusIndicator(data.payment_automation_active)}
+                    Payment Automation: ${data.payment_automation_active ? 'ACTIVE' : 'INACTIVE'}
+                </div>
+            `;
+            document.getElementById('systemHealth').innerHTML = html;
+        }
+
+        async function updatePaymentStatus() {
+            const data = await fetchData('/payment-status');
+            if (!data) return;
+
+            const html = `
+                <div class="metric-value">${data.automated_payments_count}</div>
+                <div class="metric-label">Automated Payments</div>
+                <div class="metric-value" style="color: ${data.failed_payments_count > 0 ? '#F44336' : '#4CAF50'}">
+                    ${data.failed_payments_count}
+                </div>
+                <div class="metric-label">Failed Payments</div>
+                <hr>
+                ${Object.entries(data.payment_methods_status).map(([method, status]) => `
+                    <div class="server-status">
+                        ${getStatusIndicator(status)}
+                        ${method}: ${status.toUpperCase()}
+                    </div>
+                `).join('')}
+            `;
+            document.getElementById('paymentStatus').innerHTML = html;
+        }
+
+        async function updateServerStatus() {
+            const data = await fetchData('/server-status');
+            if (!data) return;
+
+            const html = Object.entries(data).map(([server, info]) => `
+                <div class="server-status">
+                    ${getStatusIndicator(info.status)}
+                    <div>
+                        <strong>${server}</strong><br>
+                        <small>Uptime: ${info.uptime_percentage}% | Response: ${info.average_response_time}s</small>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('serverStatus').innerHTML = html;
+        }
+
+        async function updateMetrics() {
+            const data = await fetchData('/metrics');
+            if (!data) return;
+
+            const html = `
+                <div class="metric-value">${data.server_metrics.system_health_percentage}%</div>
+                <div class="metric-label">System Health</div>
+                <div class="metric-value">${data.payment_metrics.payment_success_rate}%</div>
+                <div class="metric-label">Payment Success Rate</div>
+                <div class="metric-value">${data.wallet_metrics.total_wallets}</div>
+                <div class="metric-label">Total Wallets</div>
+                <div class="metric-value">$${data.wallet_metrics.total_balance}</div>
+                <div class="metric-label">Total Balance</div>
+            `;
+            document.getElementById('metrics').innerHTML = html;
+        }
+
+        async function updateAlerts() {
+            const data = await fetchData('/alerts');
+            if (!data) return;
+
+            const allAlerts = [...data.payment_alerts, ...data.server_alerts];
+            
+            if (allAlerts.length === 0) {
+                document.getElementById('alerts').innerHTML = '<div style="text-align: center; color: #4CAF50;">✅ No active alerts</div>';
+                return;
+            }
+
+            const html = allAlerts.map(alert => `
+                <div class="alert alert-${alert.severity}">
+                    <strong>${alert.type.replace(/_/g, ' ').toUpperCase()}</strong><br>
+                    ${alert.message}<br>
+                    <small>${new Date(alert.timestamp).toLocaleString()}</small>
+                </div>
+            `).join('');
+            document.getElementById('alerts').innerHTML = html;
+        }
+
+        async function updateWalletStatus() {
+            const data = await fetchData('/metrics');
+            if (!data || !data.wallet_metrics) return;
+
+            const wm = data.wallet_metrics;
+            const html = `
+                <div class="metric-value">${wm.active_wallets}</div>
+                <div class="metric-label">Active Wallets</div>
+                <div class="metric-value">${wm.operations_count}</div>
+                <div class="metric-label">Total Operations</div>
+                <div class="metric-value">${wm.recent_activity_24h}</div>
+                <div class="metric-label">Recent Activity (24h)</div>
+                <div class="server-status">
+                    ${getStatusIndicator(wm.file_status === 'exists')}
+                    Data File: ${wm.file_status.toUpperCase()}
+                </div>
+            `;
+            document.getElementById('walletStatus').innerHTML = html;
+        }
+
+        async function refreshAll() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+            
+            await Promise.all([
+                updateSystemHealth(),
+                updatePaymentStatus(),
+                updateServerStatus(),
+                updateMetrics(),
+                updateAlerts(),
+                updateWalletStatus()
+            ]);
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            document.getElementById('autoRefreshStatus').textContent = autoRefresh ? 'ON' : 'OFF';
+            
+            if (autoRefresh) {
+                refreshInterval = setInterval(refreshAll, 10000); // Refresh every 10 seconds
+            } else {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        // Initialize
+        refreshAll();
+        refreshInterval = setInterval(refreshAll, 10000);
+    </script>
+</body>
+</html>
