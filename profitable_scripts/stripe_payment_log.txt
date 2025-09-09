@@ -1,0 +1,12 @@
+timestamp,payment_id,amount_usd,currency,status,customer_email,description
+2025-09-09T00:56:07.891725,ERROR,1.00,usd,failed,test@example.com,Stripe error: Unexpected error communicating with Stripe.  If this problem persists,
+let us know at support@stripe.com.
+
+(Network error: ConnectionError: HTTPSConnectionPool(host='api.stripe.com', port=443): Max retries exceeded with url: /v1/payment_intents (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f4d6ee6cc80>: Failed to resolve 'api.stripe.com' ([Errno -5] No address associated with hostname)")))
+2025-09-09T00:57:43.909934,ERROR,1.00,usd,failed,test@example.com,Stripe error: Unexpected error communicating with Stripe.  If this problem persists,
+let us know at support@stripe.com.
+
+(Network error: ConnectionError: HTTPSConnectionPool(host='api.stripe.com', port=443): Max retries exceeded with url: /v1/payment_intents (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7fb59e4fa420>: Failed to resolve 'api.stripe.com' ([Errno -5] No address associated with hostname)")))
+2025-09-09T00:58:55.810227,pi_mock_17573795359495,1.00,usd,created_mock_fallback,test@example.com,Test payment intent (Network Error Fallback)
+2025-09-09T00:59:27.166962,pi_mock_17573795676257,10.00,usd,created_mock_fallback,customer@example.com,API Payment Test (Network Error Fallback)
+2025-09-09T01:00:10.074557,pi_mock_17573796104510,25.50,usd,created_mock_fallback,customer@example.com,Premium API Access (Network Error Fallback)

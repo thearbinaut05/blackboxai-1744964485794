@@ -1,16 +1,33 @@
 #!/usr/bin/env python3
 """
-API Service Revenue Generator
+API Service Revenue Generator with Stripe Payment Processing
 Creates and monetizes API services for various data and functionality
 """
 import time, json, random, os, threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import socket
+from stripe_payment_processor import StripePaymentProcessor
+
+# Load environment variables from .env file
+def load_env_variables():
+    """Load environment variables from .env file"""
+    env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
+
+# Load environment variables
+load_env_variables()
 
 class ProfitableAPIHandler(BaseHTTPRequestHandler):
-    def __init__(self, revenue_tracker, *args, **kwargs):
+    def __init__(self, revenue_tracker, stripe_processor, *args, **kwargs):
         self.revenue_tracker = revenue_tracker
+        self.stripe_processor = stripe_processor
         super().__init__(*args, **kwargs)
     
     def do_GET(self):
@@ -28,8 +45,39 @@ class ProfitableAPIHandler(BaseHTTPRequestHandler):
             self.serve_yield_calculator(query_params)
         elif path == '/api/gas-tracker':
             self.serve_gas_tracker(query_params)
+        elif path == '/api/stripe/payment-intent':
+            self.create_payment_intent(query_params)
+        elif path == '/api/stripe/payment-status':
+            self.check_payment_status(query_params)
+        elif path == '/api/stripe/stats':
+            self.serve_stripe_stats()
         else:
             self.serve_api_catalog()
+    
+    def do_POST(self):
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+        
+        # Read POST data
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else '{}'
+        
+        try:
+            post_params = json.loads(post_data)
+        except json.JSONDecodeError:
+            post_params = {}
+        
+        if path == '/api/stripe/create-payment':
+            self.create_stripe_payment(post_params)
+        elif path == '/api/stripe/create-customer':
+            self.create_stripe_customer(post_params)
+        elif path == '/api/stripe/process-charge':
+            self.process_stripe_charge(post_params)
+        else:
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Endpoint not found'}).encode())
     
     def serve_crypto_price(self, params):
         """Premium crypto price API - $0.01 per request"""
@@ -150,6 +198,136 @@ class ProfitableAPIHandler(BaseHTTPRequestHandler):
         
         self.revenue_tracker.add_revenue('gas_tracker_api', 0.02)
     
+    def create_payment_intent(self, params):
+        """Create Stripe payment intent via GET request"""
+        amount_usd = float(params.get('amount', ['1.00'])[0])
+        customer_email = params.get('email', [''])[0]
+        description = params.get('description', ['API Payment'])[0]
+        
+        amount_cents = int(amount_usd * 100)
+        
+        result = self.stripe_processor.create_payment_intent(
+            amount_cents=amount_cents,
+            customer_email=customer_email if customer_email else None,
+            description=description,
+            metadata={
+                'source': 'api_server',
+                'endpoint': 'get_payment_intent'
+            }
+        )
+        
+        self.send_response(200 if result['success'] else 400)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(result).encode())
+        
+        if result['success']:
+            self.revenue_tracker.add_revenue('stripe_payment_intent', amount_usd)
+    
+    def check_payment_status(self, params):
+        """Check payment intent status"""
+        payment_intent_id = params.get('payment_intent_id', [''])[0]
+        
+        if not payment_intent_id:
+            response = {'success': False, 'error': 'payment_intent_id required'}
+        else:
+            response = self.stripe_processor.retrieve_payment_intent(payment_intent_id)
+        
+        self.send_response(200 if response.get('success', False) else 400)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(response).encode())
+    
+    def serve_stripe_stats(self):
+        """Serve Stripe payment statistics"""
+        stats = self.stripe_processor.get_payment_stats()
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(stats).encode())
+    
+    def create_stripe_payment(self, params):
+        """Create Stripe payment via POST request"""
+        amount_usd = params.get('amount', 1.00)
+        customer_email = params.get('email')
+        description = params.get('description', 'API Payment')
+        metadata = params.get('metadata', {})
+        
+        amount_cents = int(float(amount_usd) * 100)
+        
+        result = self.stripe_processor.create_payment_intent(
+            amount_cents=amount_cents,
+            customer_email=customer_email,
+            description=description,
+            metadata={**metadata, 'source': 'api_server', 'endpoint': 'post_payment'}
+        )
+        
+        self.send_response(200 if result['success'] else 400)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(result).encode())
+        
+        if result['success']:
+            self.revenue_tracker.add_revenue('stripe_payment_post', float(amount_usd))
+    
+    def create_stripe_customer(self, params):
+        """Create Stripe customer via POST request"""
+        email = params.get('email')
+        name = params.get('name')
+        phone = params.get('phone')
+        metadata = params.get('metadata', {})
+        
+        if not email:
+            response = {'success': False, 'error': 'email is required'}
+        else:
+            response = self.stripe_processor.create_customer(
+                email=email,
+                name=name,
+                phone=phone,
+                metadata={**metadata, 'source': 'api_server'}
+            )
+        
+        self.send_response(200 if response.get('success', False) else 400)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(response).encode())
+    
+    def process_stripe_charge(self, params):
+        """Process direct Stripe charge via POST request"""
+        amount_usd = params.get('amount', 1.00)
+        payment_method_id = params.get('payment_method_id')
+        customer_email = params.get('email')
+        description = params.get('description', 'Direct Charge')
+        metadata = params.get('metadata', {})
+        
+        if not payment_method_id:
+            response = {'success': False, 'error': 'payment_method_id is required'}
+        else:
+            amount_cents = int(float(amount_usd) * 100)
+            
+            response = self.stripe_processor.process_direct_charge(
+                amount_cents=amount_cents,
+                payment_method_id=payment_method_id,
+                customer_email=customer_email,
+                description=description,
+                metadata={**metadata, 'source': 'api_server', 'endpoint': 'direct_charge'}
+            )
+        
+        self.send_response(200 if response.get('success', False) else 400)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(response).encode())
+        
+        if response.get('success', False):
+            self.revenue_tracker.add_revenue('stripe_direct_charge', float(amount_usd))
+    
     def serve_api_catalog(self):
         """API catalog and pricing"""
         catalog = {
@@ -160,7 +338,18 @@ class ProfitableAPIHandler(BaseHTTPRequestHandler):
                 {'endpoint': '/api/yield-calculator', 'price': '$0.03 per request', 'description': 'DeFi yield calculator'},
                 {'endpoint': '/api/gas-tracker', 'price': '$0.02 per request', 'description': 'Gas fee tracker'}
             ],
-            'total_revenue_potential': '$0.36 per full API usage cycle'
+            'stripe_payment_apis': [
+                {'endpoint': 'GET /api/stripe/payment-intent', 'description': 'Create payment intent (GET)', 'params': 'amount, email, description'},
+                {'endpoint': 'POST /api/stripe/create-payment', 'description': 'Create payment intent (POST)', 'body': 'amount, email, description, metadata'},
+                {'endpoint': 'POST /api/stripe/create-customer', 'description': 'Create Stripe customer', 'body': 'email, name, phone, metadata'},
+                {'endpoint': 'POST /api/stripe/process-charge', 'description': 'Process direct charge', 'body': 'amount, payment_method_id, email, description'},
+                {'endpoint': 'GET /api/stripe/payment-status', 'description': 'Check payment status', 'params': 'payment_intent_id'},
+                {'endpoint': 'GET /api/stripe/stats', 'description': 'Get Stripe payment statistics', 'params': 'none'}
+            ],
+            'total_revenue_potential': '$0.36 per full API usage cycle',
+            'stripe_integration': 'USD payment processing enabled',
+            'payment_currencies': ['USD'],
+            'stripe_account_status': 'Active'
         }
         
         self.send_response(200)
@@ -197,19 +386,35 @@ class RevenueTracker:
             'api_breakdown': self.api_calls
         }
 
-def create_handler(revenue_tracker):
+def create_handler(revenue_tracker, stripe_processor):
     def handler(*args, **kwargs):
-        return ProfitableAPIHandler(revenue_tracker, *args, **kwargs)
+        return ProfitableAPIHandler(revenue_tracker, stripe_processor, *args, **kwargs)
     return handler
 
 def run_api_server():
+    # Initialize revenue tracker and Stripe processor
     revenue_tracker = RevenueTracker()
+    
+    try:
+        stripe_processor = StripePaymentProcessor(mock_mode=False)
+        print("✅ Stripe payment processor initialized successfully (LIVE MODE)")
+        print(f"Stripe account: {stripe_processor.get_payment_stats()['stripe_account']}")
+    except Exception as e:
+        print(f"⚠️  Live mode failed, falling back to mock mode: {e}")
+        try:
+            stripe_processor = StripePaymentProcessor(mock_mode=True)
+            print("✅ Stripe payment processor initialized successfully (MOCK MODE)")
+            print(f"Stripe account: {stripe_processor.get_payment_stats()['stripe_account']}")
+        except Exception as e2:
+            print(f"❌ Failed to initialize Stripe processor even in mock mode: {e2}")
+            print("API server will run without Stripe integration")
+            stripe_processor = None
     
     # Find available port
     port = 8000
     while True:
         try:
-            server = HTTPServer(('localhost', port), create_handler(revenue_tracker))
+            server = HTTPServer(('localhost', port), create_handler(revenue_tracker, stripe_processor))
             break
         except OSError:
             port += 1
@@ -224,6 +429,16 @@ def run_api_server():
     print("- GET /api/trading-signals")
     print("- GET /api/yield-calculator?amount=1000&protocol=aave")
     print("- GET /api/gas-tracker")
+    
+    if stripe_processor:
+        print("\nStripe Payment Endpoints:")
+        print("- GET /api/stripe/payment-intent?amount=10.00&email=test@example.com")
+        print("- POST /api/stripe/create-payment (JSON body)")
+        print("- POST /api/stripe/create-customer (JSON body)")
+        print("- POST /api/stripe/process-charge (JSON body)")
+        print("- GET /api/stripe/payment-status?payment_intent_id=pi_...")
+        print("- GET /api/stripe/stats")
+    
     print("- GET / (API catalog)")
     
     # Start stats reporter in background
@@ -235,6 +450,12 @@ def run_api_server():
             print(f"Total Revenue: ${stats['total_revenue']:.2f}")
             print(f"Revenue/Hour: ${stats['revenue_per_hour']:.2f}")
             print(f"Uptime: {stats['uptime_hours']:.2f} hours")
+            
+            if stripe_processor:
+                stripe_stats = stripe_processor.get_payment_stats()
+                print(f"Stripe Processed: ${stripe_stats['total_processed_usd']:.2f}")
+                print(f"Stripe Success Rate: {stripe_stats['success_rate']:.1f}%")
+            
             print("--- End Report ---\n")
     
     stats_thread = threading.Thread(target=report_stats, daemon=True)
@@ -244,6 +465,9 @@ def run_api_server():
         server.serve_forever()
     except KeyboardInterrupt:
         print(f"\nAPI Server stopped. Final revenue: ${revenue_tracker.total_revenue:.2f}")
+        if stripe_processor:
+            stripe_stats = stripe_processor.get_payment_stats()
+            print(f"Stripe processed: ${stripe_stats['total_processed_usd']:.2f}")
         server.shutdown()
 
 if __name__ == "__main__":
