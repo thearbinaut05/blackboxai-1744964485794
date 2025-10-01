@@ -10,6 +10,8 @@ env/
 # Log files
 *.log
 *_log.txt
+automation_orchestrator.log
+deployment_manager.log
 
 # IDE files
 .vscode/
@@ -25,3 +27,14 @@ node_modules/
 # Build artifacts
 dist/
 build/
+
+# Instances data (generated at runtime)
+profitable_scripts/instances/
+instances/
+
+# Temporary test files
+test_automation_demo.py
+
+# Runtime data
+data/
+logs/

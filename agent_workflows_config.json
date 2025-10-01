@@ -1,0 +1,32 @@
+[
+  {
+    "name": "revenue_optimizer",
+    "type": "continuous",
+    "script": "crypto_arbitrage.py",
+    "priority": "high"
+  },
+  {
+    "name": "data_harvester",
+    "type": "scheduled",
+    "script": "data_harvester.py",
+    "priority": "medium"
+  },
+  {
+    "name": "content_creator",
+    "type": "continuous",
+    "script": "content_monetizer.py",
+    "priority": "medium"
+  },
+  {
+    "name": "api_server",
+    "type": "service",
+    "script": "api_revenue_server.py",
+    "priority": "high"
+  },
+  {
+    "name": "affiliate_manager",
+    "type": "scheduled",
+    "script": "affiliate_monetizer.py",
+    "priority": "low"
+  }
+]
