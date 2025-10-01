@@ -1,0 +1,11 @@
+{
+  "auto_create": true,
+  "auto_initialize": true,
+  "auto_setup_ci_cd": true,
+  "templates": [
+    "python_project",
+    "node_project",
+    "revenue_scripts",
+    "agent_workflows"
+  ]
+}

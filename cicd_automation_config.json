@@ -1,0 +1,10 @@
+{
+  "auto_test": true,
+  "auto_deploy": true,
+  "auto_rollback": true,
+  "quality_gates": [
+    "tests_pass",
+    "coverage_threshold",
+    "no_security_issues"
+  ]
+}

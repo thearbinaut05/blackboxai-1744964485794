@@ -1,0 +1,6 @@
+{
+  "max_retries": 3,
+  "retry_delay": 60,
+  "failover_enabled": true,
+  "backup_instances": 5
+}
