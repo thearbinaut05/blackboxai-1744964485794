@@ -37,4 +37,4 @@ test_automation_demo.py
 
 # Runtime data
 data/
-logs/
+logs/DEMO_OUTPUT.txt
